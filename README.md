@@ -129,6 +129,46 @@ The MWE recognizer automatically:
 - Sets dependency relations to 'fixed' for MWE components
 - Handles overlapping patterns using longest-match-first
 
+#### Using Lemma Dictionary for Better Accuracy
+
+For better accuracy with inflected forms and irregular verbs, you can provide a wordform→lemma dictionary:
+
+```python
+from trankit import Pipeline
+
+# MWE database
+portuguese_mwes = {
+    "dar certo": {"lemma": "dar certo", "pos": "VERB", "type": "fixed"}
+}
+
+# Lemma dictionary with wordform→lemma mappings
+# This handles irregular forms that programmatic rules can't handle
+portuguese_lemmas = {
+    "deu": "dar",        # Irregular verb: deu → dar
+    "deram": "dar",      # Irregular verb: deram → dar
+    "dei": "dar",        # Irregular verb: dei → dar
+    "certo": "certo",
+    "certa": "certo",
+    "certos": "certo",
+    "papéis": "papel",   # Irregular plural
+    "foram": "ser"       # Irregular verb
+}
+
+# Initialize pipeline with both MWE database and lemma dictionary
+p = Pipeline('portuguese', gpu=False,
+             mwe_database=portuguese_mwes,
+             lemma_dict=portuguese_lemmas)
+
+# Now "deu certo" will match the MWE "dar certo"
+result = p("Tudo deu certo no final.")
+```
+
+The lemma dictionary provides:
+- **Accurate matching** for irregular forms and verb conjugations
+- **Priority lookup** before programmatic rules
+- **Backward compatibility** - falls back to rules if word not in dictionary
+- **Flexibility** - can be loaded from dict or JSON file
+
 See `examples/mwe_example.py` for a complete working example.
 #### Initialize a pretrained pipeline
 The following code shows how to initialize a pretrained pipeline for English; it is instructed to run on GPU, automatically download pretrained models, and store them to the specified cache directory. Trankit will not download pretrained models if they already exist.
