@@ -2,73 +2,89 @@
 Example of using Trankit with MWE (Multiword Expression) recognition.
 
 This example demonstrates how to:
-1. Initialize a Pipeline with MWE database
-2. Process text containing MWEs
-3. Inspect the output to see MWE annotations
+1. Load MWE database and lemma dictionary from JSON files (extracted from database)
+2. Initialize a Pipeline with external dictionary files
+3. Process text containing MWEs
+4. Inspect the output to see MWE annotations
+
+Prerequisites:
+    1. Run the database extraction script first:
+       python scripts/extract_dictionaries_from_db.py
+
+    2. This will create:
+       - data/portuguese/mwe_database.json
+       - data/portuguese/lemma_dict.json
 """
 
+import os
+import json
 from trankit import Pipeline
 
-# Define MWE database for Portuguese
-# Format: {"surface_form": {"lemma": "...", "pos": "...", "type": "..."}}
-portuguese_mwes = {
-    "café da manhã": {
-        "lemma": "café da manhã",
-        "pos": "NOUN",
-        "type": "fixed"
-    },
-    "uma a uma": {
-        "lemma": "um a um",
-        "pos": "ADV",
-        "type": "fixed"
-    },
-    "de acordo com": {
-        "lemma": "de acordo com",
-        "pos": "ADP",
-        "type": "fixed"
-    },
-    "por favor": {
-        "lemma": "por favor",
-        "pos": "ADV",
-        "type": "fixed"
-    },
-    "de manhã": {
-        "lemma": "de manhã",
-        "pos": "ADV",
-        "type": "fixed"
-    }
-}
+def load_json_file(filepath):
+    """Load JSON file if it exists."""
+    if os.path.exists(filepath):
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return None
 
 def main():
     print("=" * 80)
     print("Trankit MWE Recognition Example")
     print("=" * 80)
 
-    # Example 1: Basic MWE recognition (programmatic lemmatization)
-    print("\n1. Initializing Trankit pipeline for Portuguese with MWE recognition...")
-    p = Pipeline('portuguese', gpu=False, mwe_database=portuguese_mwes)
+    # Paths to extracted dictionary files
+    mwe_database_path = 'data/portuguese/mwe_database.json'
+    lemma_dict_path = 'data/portuguese/lemma_dict.json'
+
+    # Check if files exist
+    print("\n1. Checking for extracted dictionary files...")
+    mwe_db_exists = os.path.exists(mwe_database_path)
+    lemma_dict_exists = os.path.exists(lemma_dict_path)
+
+    if not mwe_db_exists or not lemma_dict_exists:
+        print("\n⚠️  WARNING: Dictionary files not found!")
+        print("\nPlease run the database extraction script first:")
+        print("    python scripts/extract_dictionaries_from_db.py")
+        print("\nThis will create:")
+        print(f"    - {mwe_database_path}")
+        print(f"    - {lemma_dict_path}")
+        print("\nFor now, using fallback hardcoded dictionaries...\n")
+
+        # Fallback: use small hardcoded dictionaries
+        mwe_database = {
+            "café da manhã": {"lemma": "café da manhã", "pos": "NOUN", "type": "fixed"},
+            "de acordo com": {"lemma": "de acordo com", "pos": "ADP", "type": "fixed"},
+            "por favor": {"lemma": "por favor", "pos": "ADV", "type": "fixed"}
+        }
+        lemma_dict = {
+            "cafés": "café",
+            "tomei": "tomar",
+            "foram": "ser"
+        }
+    else:
+        print(f"   ✓ Found: {mwe_database_path}")
+        print(f"   ✓ Found: {lemma_dict_path}")
+
+        # Load dictionaries from files
+        print("\n2. Loading dictionaries from JSON files...")
+        mwe_database = load_json_file(mwe_database_path)
+        lemma_dict = load_json_file(lemma_dict_path)
+
+        if mwe_database:
+            print(f"   ✓ Loaded {len(mwe_database)} MWE expressions")
+        if lemma_dict:
+            print(f"   ✓ Loaded {len(lemma_dict)} lemma mappings")
+
+    # Example 1: Initialize pipeline with MWE database only
+    print("\n3. Initializing Trankit pipeline with MWE database...")
+    p = Pipeline('portuguese', gpu=False, mwe_database=mwe_database)
     print("   ✓ Pipeline initialized successfully")
 
-    # Example 2: MWE recognition with custom lemma dictionary
-    print("\n2. Initializing pipeline with custom lemma dictionary for better accuracy...")
-
-    # Custom lemma dictionary with wordform → lemma mappings
-    # This handles irregular forms and improves accuracy
-    portuguese_lemmas = {
-        "cafés": "café",
-        "manhãs": "manhã",
-        "tomei": "tomar",
-        "lemos": "ler",
-        "emails": "email",
-        "veio": "vir",
-        "vimos": "vir",
-        "deu": "dar",
-        "foram": "ser"
-    }
-
+    # Example 2: Initialize pipeline with both MWE database and lemma dictionary
+    print("\n4. Initializing pipeline with MWE database + lemma dictionary...")
     p_with_dict = Pipeline('portuguese', gpu=False,
-                          mwe_database=portuguese_mwes,
-                          lemma_dict=portuguese_lemmas)
+                          mwe_database=mwe_database,
+                          lemma_dict=lemma_dict)
     print("   ✓ Pipeline with lemma dictionary initialized successfully")
 
     # Example texts containing MWEs
@@ -80,7 +96,7 @@ def main():
         "Por favor, venha de manhã."
     ]
 
-    print("\n3. Processing texts containing MWEs...")
+    print("\n5. Processing texts containing MWEs...")
     print("-" * 80)
 
     for idx, text in enumerate(texts, 1):
@@ -104,6 +120,12 @@ def main():
                 head = token.get('head', '-')
                 deprel = token.get('deprel', '-')
 
+                # Format token ID (handle both int and tuple for MWT)
+                if isinstance(token_id, tuple):
+                    id_str = f"{token_id[0]}-{token_id[1]}"
+                else:
+                    id_str = str(token_id)
+
                 # Check for MWE annotation
                 mwe_info = ""
                 if 'mwe_span' in token:
@@ -111,12 +133,12 @@ def main():
                     mwe_type = token.get('mwe_type', 'unknown')
                     mwe_info = f"✓ MWE[{span[0]}-{span[1]}]:{mwe_type}"
 
-                print(f"{token_id:<4} {text:<15} {lemma:<20} {pos:<8} {head:<6} {deprel:<12} {mwe_info}")
+                print(f"{id_str:<4} {text:<15} {lemma:<20} {pos:<8} {head:<6} {deprel:<12} {mwe_info}")
 
         print("\n" + "=" * 80)
 
     # Show MWE statistics
-    print("\n4. MWE Database Statistics:")
+    print("\n6. MWE Database Statistics:")
     print("-" * 80)
     mwe_recognizer = p._mwe_recognizer.get('portuguese')
     if mwe_recognizer:
@@ -133,7 +155,7 @@ def main():
     print("=" * 80)
 
     # Example: Adding MWEs at runtime
-    print("\n5. Adding MWEs dynamically:")
+    print("\n7. Adding MWEs dynamically:")
     print("-" * 80)
     if mwe_recognizer:
         mwe_recognizer.add_mwe(

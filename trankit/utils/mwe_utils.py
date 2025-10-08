@@ -167,11 +167,50 @@ def _lemmatize_portuguese(word):
     return word
 
 
+def _expand_portuguese_contractions(word):
+    """
+    Expand Portuguese contractions to match MWT expansion.
+
+    Returns list of expanded tokens, or [word] if not a contraction.
+    """
+    # Mapping of contractions to their expansions
+    contraction_map = {
+        'da': ['de', 'a'],
+        'do': ['de', 'o'],
+        'das': ['de', 'as'],
+        'dos': ['de', 'os'],
+        'na': ['em', 'a'],
+        'no': ['em', 'o'],
+        'nas': ['em', 'as'],
+        'nos': ['em', 'os'],
+        'ao': ['a', 'o'],
+        'aos': ['a', 'os'],
+        'à': ['a', 'a'],
+        'às': ['a', 'as'],
+        'pela': ['por', 'a'],
+        'pelo': ['por', 'o'],
+        'pelas': ['por', 'as'],
+        'pelos': ['por', 'os'],
+        'dum': ['de', 'um'],
+        'duma': ['de', 'uma'],
+        'duns': ['de', 'uns'],
+        'dumas': ['de', 'umas'],
+        'num': ['em', 'um'],
+        'numa': ['em', 'uma'],
+        'nuns': ['em', 'uns'],
+        'numas': ['em', 'umas']
+    }
+
+    word_lower = word.lower()
+    return contraction_map.get(word_lower, [word])
+
+
 def build_mwe_trie(mwe_database, language='portuguese', lemma_dict=None):
     """
     Build a trie structure for efficient MWE matching.
 
     The trie stores lemmatized forms of MWEs for fast lookup.
+    For Portuguese, contractions in MWEs are expanded to match MWT expansion.
 
     Args:
         mwe_database: MWE dictionary
@@ -186,8 +225,17 @@ def build_mwe_trie(mwe_database, language='portuguese', lemma_dict=None):
     trie = {}
 
     for mwe_text, mwe_info in mwe_database.items():
-        # Tokenize and lemmatize the MWE
+        # Tokenize the MWE
         tokens = mwe_text.split()
+
+        # Expand contractions (for Portuguese)
+        if language in ['portuguese', 'pt']:
+            expanded_tokens = []
+            for token in tokens:
+                expanded_tokens.extend(_expand_portuguese_contractions(token))
+            tokens = expanded_tokens
+
+        # Lemmatize tokens
         lemmas = [quick_lemmatize(t, language, lemma_dict) for t in tokens]
 
         # Build trie path
