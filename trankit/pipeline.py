@@ -3,6 +3,7 @@ from .models.base_models import Multilingual_Embedding
 from .models.classifiers import TokenizerClassifier, PosDepClassifier, NERClassifier
 from .models.mwt_model import MWTWrapper
 from .models.lemma_model import LemmaWrapper
+from .models.mwe_recognizer import MWERecognizer
 from .iterators.tokenizer_iterators import TokenizeDatasetLive
 from .iterators.tagger_iterators import TaggerDatasetLive
 from .iterators.ner_iterators import NERDatasetLive
@@ -43,7 +44,7 @@ def is_list_list_strings(input):
 
 
 class Pipeline:
-    def __init__(self, lang, cache_dir=None, gpu=True, embedding='xlm-roberta-base'):
+    def __init__(self, lang, cache_dir=None, gpu=True, embedding='xlm-roberta-base', mwe_database=None):
         super(Pipeline, self).__init__()
         # auto detection of lang
         if lang == 'auto':
@@ -57,6 +58,11 @@ class Pipeline:
 
         self.master_config = MasterConfig()
         self.master_config.embedding_name = embedding
+
+        # MWE configuration
+        if mwe_database is not None:
+            self.master_config.mwe_database = mwe_database
+            self.master_config.enable_mwe_recognition = True
 
         self._cache_dir = cache_dir
         self._gpu = gpu
@@ -113,6 +119,15 @@ class Pipeline:
         self._lemma_model = {}
         treebank_name = lang2treebank[lang]
         self._lemma_model[lang] = LemmaWrapper(self._config, treebank_name=treebank_name, use_gpu=self._use_gpu)
+
+        # mwe recognition if enabled
+        self._mwe_recognizer = {}
+        if self._config.enable_mwe_recognition and self._config.mwe_database:
+            self._mwe_recognizer[lang] = MWERecognizer(
+                language=lang,
+                mwe_database=self._config.mwe_database,
+                max_mwe_length=self._config.mwe_max_length
+            )
 
         # ner if available
         self._ner_model = {}
@@ -264,6 +279,14 @@ class Pipeline:
 
         # lemma
         self._lemma_model[lang] = LemmaWrapper(self._config, treebank_name=treebank_name, use_gpu=self._use_gpu)
+
+        # mwe recognition if enabled
+        if self._config.enable_mwe_recognition and self._config.mwe_database:
+            self._mwe_recognizer[lang] = MWERecognizer(
+                language=lang,
+                mwe_database=self._config.mwe_database,
+                max_mwe_length=self._config.mwe_max_length
+            )
 
         # ner if available
         if lang in langwithner:
@@ -582,6 +605,10 @@ class Pipeline:
         if tbname2training_id[self._config.treebank_name] % 2 == 1:
             tokens = self._mwt_expand([{TOKENS: tokens}])[0][TOKENS]
 
+        # MWE recognition if enabled
+        if self._config.active_lang in self._mwe_recognizer:
+            tokens = self._mwe_recognizer[self._config.active_lang].recognize_in_sentence(tokens)
+
         torch.cuda.empty_cache()
         return tokens
 
@@ -711,6 +738,11 @@ class Pipeline:
         # multi-word expansion if required
         if tbname2training_id[self._config.treebank_name] % 2 == 1:
             doc = self._mwt_expand(doc)
+
+        # MWE recognition if enabled
+        if self._config.active_lang in self._mwe_recognizer:
+            doc = self._mwe_recognizer[self._config.active_lang].recognize_in_document(doc)
+
         torch.cuda.empty_cache()
         return doc
 
@@ -809,24 +841,45 @@ class Pipeline:
                 sentid = batch.sent_index[bid]
                 for i in range(batch.word_num[bid]):
                     wordid = batch.word_ids[bid][i]
+                    token = test_set.conllu_doc[sentid][wordid]
 
-                    # upos
-                    pred_upos_id = predicted_upos[bid][i]
-                    upos_name = self._config.itos[self._config.active_lang][UPOS][pred_upos_id]
-                    test_set.conllu_doc[sentid][wordid][UPOS] = upos_name
-                    # xpos
-                    pred_xpos_id = predicted_xpos[bid][i]
-                    xpos_name = self._config.itos[self._config.active_lang][XPOS][pred_xpos_id]
-                    test_set.conllu_doc[sentid][wordid][XPOS] = xpos_name
-                    # feats
-                    pred_feats_id = predicted_feats[bid][i]
-                    feats_name = self._config.itos[self._config.active_lang][FEATS][pred_feats_id]
-                    test_set.conllu_doc[sentid][wordid][FEATS] = feats_name
+                    # Check if token has MWE annotation
+                    if 'mwe_pos' in token and token['mwe_pos']:
+                        # Use MWE database values instead of model predictions
+                        test_set.conllu_doc[sentid][wordid][UPOS] = token['mwe_pos']
+                        test_set.conllu_doc[sentid][wordid][XPOS] = token['mwe_pos']
+                        test_set.conllu_doc[sentid][wordid][FEATS] = '_'
+                        test_set.conllu_doc[sentid][wordid][LEMMA] = token['mwe_lemma']
 
-                    # head
-                    test_set.conllu_doc[sentid][wordid][HEAD] = int(pred_tokens[bid][i][0])
-                    # deprel
-                    test_set.conllu_doc[sentid][wordid][DEPREL] = pred_tokens[bid][i][1]
+                        # Set dependency relations for MWE
+                        if 'mwe_position' in token and token['mwe_position'] == 0:
+                            # This is the head of the MWE - use predicted head
+                            test_set.conllu_doc[sentid][wordid][HEAD] = int(pred_tokens[bid][i][0])
+                            test_set.conllu_doc[sentid][wordid][DEPREL] = pred_tokens[bid][i][1]
+                        else:
+                            # This is a dependent within MWE - attach to MWE head
+                            mwe_head_idx = token.get('mwe_head', wordid)
+                            test_set.conllu_doc[sentid][wordid][HEAD] = mwe_head_idx + 1  # Convert to 1-indexed
+                            test_set.conllu_doc[sentid][wordid][DEPREL] = 'fixed'
+                    else:
+                        # Standard prediction without MWE
+                        # upos
+                        pred_upos_id = predicted_upos[bid][i]
+                        upos_name = self._config.itos[self._config.active_lang][UPOS][pred_upos_id]
+                        test_set.conllu_doc[sentid][wordid][UPOS] = upos_name
+                        # xpos
+                        pred_xpos_id = predicted_xpos[bid][i]
+                        xpos_name = self._config.itos[self._config.active_lang][XPOS][pred_xpos_id]
+                        test_set.conllu_doc[sentid][wordid][XPOS] = xpos_name
+                        # feats
+                        pred_feats_id = predicted_feats[bid][i]
+                        feats_name = self._config.itos[self._config.active_lang][FEATS][pred_feats_id]
+                        test_set.conllu_doc[sentid][wordid][FEATS] = feats_name
+
+                        # head
+                        test_set.conllu_doc[sentid][wordid][HEAD] = int(pred_tokens[bid][i][0])
+                        # deprel
+                        test_set.conllu_doc[sentid][wordid][DEPREL] = pred_tokens[bid][i][1]
 
             del predictions
             del sentlens 
@@ -895,24 +948,45 @@ class Pipeline:
                 sentid = batch.sent_index[bid]
                 for i in range(batch.word_num[bid]):
                     wordid = batch.word_ids[bid][i]
+                    token = test_set.conllu_doc[sentid][wordid]
 
-                    # upos
-                    pred_upos_id = predicted_upos[bid][i]
-                    upos_name = self._config.itos[self._config.active_lang][UPOS][pred_upos_id]
-                    test_set.conllu_doc[sentid][wordid][UPOS] = upos_name
-                    # xpos
-                    pred_xpos_id = predicted_xpos[bid][i]
-                    xpos_name = self._config.itos[self._config.active_lang][XPOS][pred_xpos_id]
-                    test_set.conllu_doc[sentid][wordid][XPOS] = xpos_name
-                    # feats
-                    pred_feats_id = predicted_feats[bid][i]
-                    feats_name = self._config.itos[self._config.active_lang][FEATS][pred_feats_id]
-                    test_set.conllu_doc[sentid][wordid][FEATS] = feats_name
+                    # Check if token has MWE annotation
+                    if 'mwe_pos' in token and token['mwe_pos']:
+                        # Use MWE database values instead of model predictions
+                        test_set.conllu_doc[sentid][wordid][UPOS] = token['mwe_pos']
+                        test_set.conllu_doc[sentid][wordid][XPOS] = token['mwe_pos']
+                        test_set.conllu_doc[sentid][wordid][FEATS] = '_'
+                        test_set.conllu_doc[sentid][wordid][LEMMA] = token['mwe_lemma']
 
-                    # head
-                    test_set.conllu_doc[sentid][wordid][HEAD] = int(pred_tokens[bid][i][0])
-                    # deprel
-                    test_set.conllu_doc[sentid][wordid][DEPREL] = pred_tokens[bid][i][1]
+                        # Set dependency relations for MWE
+                        if 'mwe_position' in token and token['mwe_position'] == 0:
+                            # This is the head of the MWE - use predicted head
+                            test_set.conllu_doc[sentid][wordid][HEAD] = int(pred_tokens[bid][i][0])
+                            test_set.conllu_doc[sentid][wordid][DEPREL] = pred_tokens[bid][i][1]
+                        else:
+                            # This is a dependent within MWE - attach to MWE head
+                            mwe_head_idx = token.get('mwe_head', wordid)
+                            test_set.conllu_doc[sentid][wordid][HEAD] = mwe_head_idx + 1  # Convert to 1-indexed
+                            test_set.conllu_doc[sentid][wordid][DEPREL] = 'fixed'
+                    else:
+                        # Standard prediction without MWE
+                        # upos
+                        pred_upos_id = predicted_upos[bid][i]
+                        upos_name = self._config.itos[self._config.active_lang][UPOS][pred_upos_id]
+                        test_set.conllu_doc[sentid][wordid][UPOS] = upos_name
+                        # xpos
+                        pred_xpos_id = predicted_xpos[bid][i]
+                        xpos_name = self._config.itos[self._config.active_lang][XPOS][pred_xpos_id]
+                        test_set.conllu_doc[sentid][wordid][XPOS] = xpos_name
+                        # feats
+                        pred_feats_id = predicted_feats[bid][i]
+                        feats_name = self._config.itos[self._config.active_lang][FEATS][pred_feats_id]
+                        test_set.conllu_doc[sentid][wordid][FEATS] = feats_name
+
+                        # head
+                        test_set.conllu_doc[sentid][wordid][HEAD] = int(pred_tokens[bid][i][0])
+                        # deprel
+                        test_set.conllu_doc[sentid][wordid][DEPREL] = pred_tokens[bid][i][1]
 
             del predictions
             del sentlens 
