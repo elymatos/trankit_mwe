@@ -44,7 +44,7 @@ def is_list_list_strings(input):
 
 
 class Pipeline:
-    def __init__(self, lang, cache_dir=None, gpu=True, embedding='xlm-roberta-base', mwe_database=None):
+    def __init__(self, lang, cache_dir=None, gpu=True, embedding='xlm-roberta-base', mwe_database=None, lemma_dict=None):
         super(Pipeline, self).__init__()
         # auto detection of lang
         if lang == 'auto':
@@ -63,6 +63,9 @@ class Pipeline:
         if mwe_database is not None:
             self.master_config.mwe_database = mwe_database
             self.master_config.enable_mwe_recognition = True
+
+        # Lemma dictionary for MWE recognition
+        self.master_config.lemma_dict = lemma_dict
 
         self._cache_dir = cache_dir
         self._gpu = gpu
@@ -126,6 +129,7 @@ class Pipeline:
             self._mwe_recognizer[lang] = MWERecognizer(
                 language=lang,
                 mwe_database=self._config.mwe_database,
+                lemma_dict=self._config.lemma_dict,
                 max_mwe_length=self._config.mwe_max_length
             )
 
@@ -285,6 +289,7 @@ class Pipeline:
             self._mwe_recognizer[lang] = MWERecognizer(
                 language=lang,
                 mwe_database=self._config.mwe_database,
+                lemma_dict=self._config.lemma_dict,
                 max_mwe_length=self._config.mwe_max_length
             )
 

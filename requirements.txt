@@ -1,25 +1,26 @@
 # Trankit MWE Extension - Requirements
 # Core dependencies for Trankit with MWE recognition support
+# Compatible with Python 3.8
 
 # Deep Learning Framework
 torch>=1.6.0,<=2.0.1
 
-# Transformers and Adapters
-transformers
+# Transformers and Adapters (install tokenizers first with specific version)
+tokenizers==0.13.3
+transformers>=4.0.0,<5.0.0
 adapters>=0.1.1
-tokenizers>=0.7.0
 
 # NLP and Text Processing
-sentencepiece
-sacremoses
+sentencepiece>=0.1.91
+sacremoses>=0.0.35
 langid==1.1.6
 
 # Utilities
-numpy
-protobuf
-requests
+#numpy>=1.19.0,<2.0.0
+protobuf>=3.19.0,<4.0.0
+requests>=2.25.0
 tqdm>=4.27
-filelock
-packaging
+filelock>=3.0.0
+packaging>=20.0
 regex!=2019.12.17
-six
+six>=1.15.0

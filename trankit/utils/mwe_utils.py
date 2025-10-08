@@ -57,16 +57,56 @@ def load_mwe_database(database_source, language='portuguese'):
     return {}
 
 
-def quick_lemmatize(word, language='portuguese'):
+def load_lemma_dict(lemma_dict_source, language='portuguese'):
     """
-    Fast lemmatization using morphological rules.
+    Load wordform-to-lemma dictionary from various sources.
 
-    This is a simplified lemmatizer for MWE matching. It applies
-    common morphological patterns to normalize inflected forms.
+    Args:
+        lemma_dict_source: Can be:
+            - dict: Direct wordform→lemma mapping {"wordform": "lemma", ...}
+            - str: Path to JSON file with same structure
+            - None: Returns empty dict
+
+    Returns:
+        dict: Lemma dictionary with structure {"wordform": "lemma", ...}
+              All keys and values are lowercased for case-insensitive matching.
+    """
+    if lemma_dict_source is None:
+        return {}
+
+    if isinstance(lemma_dict_source, dict):
+        # Lowercase all keys and values for consistent matching
+        return {k.lower(): v.lower() for k, v in lemma_dict_source.items()}
+
+    if isinstance(lemma_dict_source, str):
+        # Load from JSON file
+        try:
+            with open(lemma_dict_source, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Lowercase all keys and values
+                return {k.lower(): v.lower() for k, v in data.items()}
+        except FileNotFoundError:
+            print(f"Warning: Lemma dictionary file not found: {lemma_dict_source}")
+            return {}
+        except json.JSONDecodeError:
+            print(f"Warning: Invalid JSON in lemma dictionary: {lemma_dict_source}")
+            return {}
+
+    return {}
+
+
+def quick_lemmatize(word, language='portuguese', lemma_dict=None):
+    """
+    Fast lemmatization using dictionary lookup or morphological rules.
+
+    This function prioritizes dictionary lookup for accuracy, then falls back
+    to programmatic rules for words not in the dictionary.
 
     Args:
         word: Input word (string)
         language: Language code
+        lemma_dict: Optional dictionary mapping wordforms to lemmas.
+                   If provided, this is checked first before applying rules.
 
     Returns:
         str: Lemmatized form
@@ -76,6 +116,11 @@ def quick_lemmatize(word, language='portuguese'):
 
     word_lower = word.lower()
 
+    # Priority 1: Check lemma dictionary if provided
+    if lemma_dict and word_lower in lemma_dict:
+        return lemma_dict[word_lower]
+
+    # Priority 2: Fallback to programmatic rules
     if language == 'portuguese' or language == 'pt':
         return _lemmatize_portuguese(word_lower)
 
@@ -97,7 +142,7 @@ def _lemmatize_portuguese(word):
     if word.endswith('ãos'):
         return word[:-3] + 'ão'  # mãos → mão
     if word.endswith('eis'):
-        if len(word) > 4 and word[-4] in 'aeiou':
+        if len(word) > 4 and word[-4] in 'aeiouáéíóú':
             return word[:-3] + 'l'  # papéis → papel
         return word[:-3] + 'il'  # barris → barril
     if word.endswith('óis'):
@@ -122,7 +167,7 @@ def _lemmatize_portuguese(word):
     return word
 
 
-def build_mwe_trie(mwe_database, language='portuguese'):
+def build_mwe_trie(mwe_database, language='portuguese', lemma_dict=None):
     """
     Build a trie structure for efficient MWE matching.
 
@@ -131,6 +176,7 @@ def build_mwe_trie(mwe_database, language='portuguese'):
     Args:
         mwe_database: MWE dictionary
         language: Language code for lemmatization
+        lemma_dict: Optional wordform→lemma dictionary for accurate lemmatization
 
     Returns:
         dict: Trie structure where each node contains:
@@ -142,7 +188,7 @@ def build_mwe_trie(mwe_database, language='portuguese'):
     for mwe_text, mwe_info in mwe_database.items():
         # Tokenize and lemmatize the MWE
         tokens = mwe_text.split()
-        lemmas = [quick_lemmatize(t, language) for t in tokens]
+        lemmas = [quick_lemmatize(t, language, lemma_dict) for t in tokens]
 
         # Build trie path
         current = trie
@@ -163,7 +209,7 @@ def build_mwe_trie(mwe_database, language='portuguese'):
     return trie
 
 
-def match_mwe_spans(tokens, mwe_trie, language='portuguese', max_length=10):
+def match_mwe_spans(tokens, mwe_trie, language='portuguese', max_length=10, lemma_dict=None):
     """
     Find all MWE spans in a token sequence using longest-match-first.
 
@@ -172,6 +218,7 @@ def match_mwe_spans(tokens, mwe_trie, language='portuguese', max_length=10):
         mwe_trie: Trie structure from build_mwe_trie()
         language: Language code for lemmatization
         max_length: Maximum MWE length to consider
+        lemma_dict: Optional wordform→lemma dictionary for accurate lemmatization
 
     Returns:
         list: List of (start_idx, end_idx, mwe_info) tuples, where:
@@ -204,7 +251,7 @@ def match_mwe_spans(tokens, mwe_trie, language='portuguese', max_length=10):
             if 'lemma' in token and token['lemma']:
                 lemma = token['lemma'].lower()
             else:
-                lemma = quick_lemmatize(token.get('text', token.get(TEXT, '')), language)
+                lemma = quick_lemmatize(token.get('text', token.get(TEXT, '')), language, lemma_dict)
 
             # Check if lemma is in trie
             if lemma not in current_trie:

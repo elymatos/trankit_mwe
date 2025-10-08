@@ -22,6 +22,7 @@ class Config:
 
         # MWE (Multiword Expression) recognition settings
         self.mwe_database = None  # Path to MWE database file or dict
+        self.lemma_dict = None  # Wordform→lemma dictionary for accurate lemmatization
         self.enable_mwe_recognition = False  # Enable/disable MWE recognition
         self.mwe_max_length = 10  # Maximum number of tokens in an MWE
 
