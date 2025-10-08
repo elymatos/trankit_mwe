@@ -21,18 +21,20 @@ except ImportError:
     TORCH_AVAILABLE = False
     print("Warning: PyTorch not available. Running tests in minimal mode.")
 
-if TORCH_AVAILABLE:
-    # Full import with all dependencies
+# Import MWE utils (these don't require PyTorch)
+try:
     from trankit.utils.mwe_utils import (
         load_mwe_database,
+        load_lemma_dict,
         quick_lemmatize,
         build_mwe_trie,
         match_mwe_spans,
         mark_mwe_tokens
     )
-else:
-    # Minimal mode: test only core lemmatization logic without imports
-    print("Skipping full tests. Install PyTorch to run complete test suite.")
+    MWE_UTILS_AVAILABLE = True
+except ImportError as e:
+    print(f"Error importing MWE utilities: {e}")
+    print("Skipping tests.")
     sys.exit(0)
 
 
