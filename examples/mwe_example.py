@@ -44,10 +44,32 @@ def main():
     print("Trankit MWE Recognition Example")
     print("=" * 80)
 
-    # Initialize pipeline with MWE recognition
+    # Example 1: Basic MWE recognition (programmatic lemmatization)
     print("\n1. Initializing Trankit pipeline for Portuguese with MWE recognition...")
     p = Pipeline('portuguese', gpu=False, mwe_database=portuguese_mwes)
     print("   ✓ Pipeline initialized successfully")
+
+    # Example 2: MWE recognition with custom lemma dictionary
+    print("\n2. Initializing pipeline with custom lemma dictionary for better accuracy...")
+
+    # Custom lemma dictionary with wordform → lemma mappings
+    # This handles irregular forms and improves accuracy
+    portuguese_lemmas = {
+        "cafés": "café",
+        "manhãs": "manhã",
+        "tomei": "tomar",
+        "lemos": "ler",
+        "emails": "email",
+        "veio": "vir",
+        "vimos": "vir",
+        "deu": "dar",
+        "foram": "ser"
+    }
+
+    p_with_dict = Pipeline('portuguese', gpu=False,
+                          mwe_database=portuguese_mwes,
+                          lemma_dict=portuguese_lemmas)
+    print("   ✓ Pipeline with lemma dictionary initialized successfully")
 
     # Example texts containing MWEs
     texts = [
@@ -58,7 +80,7 @@ def main():
         "Por favor, venha de manhã."
     ]
 
-    print("\n2. Processing texts containing MWEs...")
+    print("\n3. Processing texts containing MWEs...")
     print("-" * 80)
 
     for idx, text in enumerate(texts, 1):
@@ -94,7 +116,7 @@ def main():
         print("\n" + "=" * 80)
 
     # Show MWE statistics
-    print("\n3. MWE Database Statistics:")
+    print("\n4. MWE Database Statistics:")
     print("-" * 80)
     mwe_recognizer = p._mwe_recognizer.get('portuguese')
     if mwe_recognizer:
@@ -103,10 +125,15 @@ def main():
         print(f"Length distribution: {stats['length_distribution']}")
         print(f"POS distribution: {stats['pos_distribution']}")
         print(f"Type distribution: {stats['type_distribution']}")
+
+    # Show lemma dictionary info for pipeline with dict
+    mwe_recognizer_dict = p_with_dict._mwe_recognizer.get('portuguese')
+    if mwe_recognizer_dict:
+        print(f"\nPipeline with lemma_dict has {len(mwe_recognizer_dict.lemma_dict)} wordform mappings")
     print("=" * 80)
 
     # Example: Adding MWEs at runtime
-    print("\n4. Adding MWEs dynamically:")
+    print("\n5. Adding MWEs dynamically:")
     print("-" * 80)
     if mwe_recognizer:
         mwe_recognizer.add_mwe(

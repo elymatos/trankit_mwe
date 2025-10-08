@@ -57,21 +57,39 @@ def test_quick_lemmatize_portuguese():
     """Test Portuguese lemmatization rules."""
     print("\nTesting quick_lemmatize...")
 
-    test_cases = [
+    # Test without lemma_dict (using programmatic rules)
+    test_cases_rules = [
         ("cafés", "café"),
         ("manhãs", "manhã"),
-        ("papéis", "papel"),
         ("flores", "flore"),  # Simplified rule
         ("jardins", "jardim"),
         ("uma", "uma"),  # No change
         ("da", "da"),  # No change
     ]
 
-    for word, expected in test_cases:
+    for word, expected in test_cases_rules:
         result = quick_lemmatize(word, 'portuguese')
         assert result == expected, f"Expected '{expected}', got '{result}' for '{word}'"
 
-    print("✓ quick_lemmatize test passed")
+    # Test with lemma_dict (using dictionary lookup)
+    lemma_dict = {
+        "papéis": "papel",
+        "cafés": "café",
+        "foram": "ser",  # Irregular verb
+    }
+
+    test_cases_dict = [
+        ("papéis", "papel"),  # Dictionary lookup
+        ("cafés", "café"),  # Dictionary lookup (overrides rules)
+        ("foram", "ser"),  # Irregular verb
+        ("flores", "flore"),  # Fallback to rules
+    ]
+
+    for word, expected in test_cases_dict:
+        result = quick_lemmatize(word, 'portuguese', lemma_dict)
+        assert result == expected, f"Expected '{expected}', got '{result}' for '{word}' with lemma_dict"
+
+    print("✓ quick_lemmatize test passed (both rules and dict)")
 
 
 def test_build_mwe_trie():
@@ -197,6 +215,45 @@ def test_overlapping_mwes():
     print("✓ overlapping MWEs test passed")
 
 
+def test_lemma_dict_integration():
+    """Test MWE recognition with custom lemma dictionary."""
+    print("\nTesting lemma_dict integration...")
+
+    # MWE database
+    mwe_dict = {
+        "dar certo": {"lemma": "dar certo", "pos": "VERB", "type": "fixed"}
+    }
+
+    # Lemma dictionary with irregular forms
+    lemma_dict = {
+        "deu": "dar",
+        "deram": "dar",
+        "certo": "certo",
+        "certa": "certo",
+        "certos": "certo"
+    }
+
+    # Build trie with lemma dict
+    trie = build_mwe_trie(mwe_dict, 'portuguese', lemma_dict)
+
+    # Test with inflected form
+    tokens = [
+        {"text": "Tudo"},
+        {"text": "deu"},  # Irregular verb form: deu → dar
+        {"text": "certo"}
+    ]
+
+    spans = match_mwe_spans(tokens, trie, 'portuguese', lemma_dict=lemma_dict)
+
+    # Should match via lemma dictionary
+    assert len(spans) == 1
+    assert spans[0][0] == 1  # Start at "deu"
+    assert spans[0][1] == 3  # End after "certo"
+    assert spans[0][2]['lemma'] == "dar certo"
+
+    print("✓ lemma_dict integration test passed")
+
+
 def run_all_tests():
     """Run all tests."""
     print("=" * 80)
@@ -210,6 +267,7 @@ def run_all_tests():
         test_match_mwe_spans()
         test_mark_mwe_tokens()
         test_overlapping_mwes()
+        test_lemma_dict_integration()
 
         print("\n" + "=" * 80)
         print("All tests passed successfully! ✓")

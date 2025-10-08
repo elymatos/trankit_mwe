@@ -8,6 +8,7 @@ other multiword units that should be treated as single linguistic units.
 
 from ..utils.mwe_utils import (
     load_mwe_database,
+    load_lemma_dict,
     build_mwe_trie,
     match_mwe_spans,
     mark_mwe_tokens,
@@ -26,22 +27,27 @@ class MWERecognizer:
     - Inflected MWEs (e.g., "café da manhã", "cafés da manhã")
     - Longest-match-first matching strategy
     - Fast trie-based lookup
+    - Optional wordform→lemma dictionary for accurate lemmatization
 
     Attributes:
         language (str): Language code
         mwe_database (dict): Raw MWE dictionary
+        lemma_dict (dict): Wordform→lemma mapping dictionary
         mwe_trie (dict): Trie structure for efficient matching
         max_mwe_length (int): Maximum MWE length to consider
         enabled (bool): Whether MWE recognition is active
     """
 
-    def __init__(self, language, mwe_database=None, max_mwe_length=10):
+    def __init__(self, language, mwe_database=None, lemma_dict=None, max_mwe_length=10):
         """
         Initialize the MWE recognizer.
 
         Args:
             language (str): Language code (e.g., 'portuguese', 'pt')
             mwe_database: MWE dictionary or path to JSON file
+            lemma_dict: Optional wordform→lemma dictionary or path to JSON file.
+                       If provided, this is used for accurate lemmatization instead
+                       of programmatic rules.
             max_mwe_length (int): Maximum number of tokens in an MWE
         """
         self.language = language
@@ -50,11 +56,15 @@ class MWERecognizer:
         # Load MWE database
         self.mwe_database = load_mwe_database(mwe_database, language)
 
+        # Load lemma dictionary
+        self.lemma_dict = load_lemma_dict(lemma_dict, language)
+
         # Build trie for efficient matching
         if self.mwe_database:
-            self.mwe_trie = build_mwe_trie(self.mwe_database, language)
+            self.mwe_trie = build_mwe_trie(self.mwe_database, language, self.lemma_dict)
             self.enabled = True
-            print(f'Loaded MWE recognizer for {language}: {len(self.mwe_database)} expressions')
+            lemma_info = f" with {len(self.lemma_dict)} lemma mappings" if self.lemma_dict else ""
+            print(f'Loaded MWE recognizer for {language}: {len(self.mwe_database)} expressions{lemma_info}')
         else:
             self.mwe_trie = {}
             self.enabled = False
@@ -77,7 +87,8 @@ class MWERecognizer:
             sentence_tokens,
             self.mwe_trie,
             self.language,
-            self.max_mwe_length
+            self.max_mwe_length,
+            self.lemma_dict
         )
 
         # Mark tokens with MWE information
@@ -165,7 +176,7 @@ class MWERecognizer:
         }
 
         # Rebuild trie
-        self.mwe_trie = build_mwe_trie(self.mwe_database, self.language)
+        self.mwe_trie = build_mwe_trie(self.mwe_database, self.language, self.lemma_dict)
         self.enabled = True
 
     def remove_mwe(self, mwe_text):
@@ -179,7 +190,7 @@ class MWERecognizer:
             del self.mwe_database[mwe_text]
 
             # Rebuild trie
-            self.mwe_trie = build_mwe_trie(self.mwe_database, self.language)
+            self.mwe_trie = build_mwe_trie(self.mwe_database, self.language, self.lemma_dict)
 
             if not self.mwe_database:
                 self.enabled = False
