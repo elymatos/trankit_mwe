@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  trankit-mwe-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trankit-mwe-api:latest
+    container_name: trankit-mwe-api
+    ports:
+      - "${PORT:-8080}:80"
+    volumes:
+      # Mount application code for development (optional - comment out for production)
+      - ./app:/app/app
+      - ./trankit:/app/trankit
+
+      # Mount data directory (MWE database and lemma dictionary)
+      - ./data:/app/data
+
+      # Mount cache directory (Trankit model cache)
+      - ./cache:/app/cache
+
+      # Mount prestart script
+      - ./app/prestart.sh:/app/prestart.sh
+
+    environment:
+      # Server settings
+      - HOST=${HOST:-0.0.0.0}
+      - PORT=${PORT:-80}
+      - WORKERS=${WORKERS:-1}
+      - WORKERS_PER_CORE=${WORKERS_PER_CORE:-1}
+      - MAX_WORKERS=${MAX_WORKERS:-1}
+      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-1}
+
+      # GPU settings
+      - GPU_ENABLED=${GPU_ENABLED:-false}
+
+      # Language settings
+      - DEFAULT_LANGUAGE=${DEFAULT_LANGUAGE:-portuguese}
+      - SUPPORTED_LANGUAGES=${SUPPORTED_LANGUAGES:-portuguese,english}
+
+      # MWE settings
+      - MWE_ENABLED=${MWE_ENABLED:-true}
+      - MWE_DATABASE_PATH=${MWE_DATABASE_PATH:-data/portuguese/mwe_database.json}
+      - LEMMA_DICT_PATH=${LEMMA_DICT_PATH:-data/portuguese/lemma_dict.json}
+
+      # Cache settings
+      - CACHE_DIR=${CACHE_DIR:-./cache/trankit/}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-xlm-roberta-base}
+
+      # Timeout settings
+      - TIMEOUT=${TIMEOUT:-600}
+      - GRACEFUL_TIMEOUT=${GRACEFUL_TIMEOUT:-600}
+      - KEEP_ALIVE=${KEEP_ALIVE:-5}
+
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ACCESS_LOG=${ACCESS_LOG:--}
+      - ERROR_LOG=${ERROR_LOG:--}
+
+      # CORS settings
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # For GPU support, uncomment the following:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Optional: Development mode with auto-reload
+  # Uncomment this service for development
+  # trankit-mwe-api-dev:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: trankit-mwe-api-dev
+  #   ports:
+  #     - "8000:80"
+  #   volumes:
+  #     - ./app:/app/app
+  #     - ./trankit:/app/trankit
+  #     - ./data:/app/data
+  #     - ./cache:/app/cache
+  #   environment:
+  #     - WORKERS=1
+  #     - LOG_LEVEL=debug
+  #   command: uvicorn app.main:app --host 0.0.0.0 --port 80 --reload
+
+networks:
+  default:
+    name: trankit-network

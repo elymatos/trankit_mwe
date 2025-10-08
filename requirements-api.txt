@@ -1,0 +1,78 @@
+# Trankit MWE API - Requirements
+# API server dependencies for production deployment
+
+# =============================================================================
+# TRANKIT CORE DEPENDENCIES (from requirements.txt)
+# =============================================================================
+
+# Deep Learning Framework
+torch>=1.6.0,<=2.0.1
+
+# Transformers and Adapters
+tokenizers==0.13.3
+transformers>=4.0.0,<5.0.0
+adapters>=0.1.1
+
+# NLP and Text Processing
+sentencepiece>=0.1.91
+sacremoses>=0.0.35
+langid==1.1.6
+
+# Utilities
+numpy>=1.19.0,<2.0.0
+protobuf>=3.19.0,<4.0.0
+requests>=2.25.0
+tqdm>=4.27
+filelock>=3.0.0
+packaging>=20.0
+regex!=2019.12.17
+six>=1.15.0
+
+# =============================================================================
+# TRANKIT PACKAGE (local installation)
+# =============================================================================
+
+# Install local trankit with MWE extension
+# This will be copied into the Docker container
+# -e ./trankit
+
+# =============================================================================
+# API SERVER DEPENDENCIES
+# =============================================================================
+
+# FastAPI framework
+fastapi>=0.104.0
+
+# ASGI server
+uvicorn[standard]>=0.24.0
+
+# Production WSGI server
+gunicorn>=21.2.0
+
+# Data validation
+pydantic>=2.0.0
+
+# HTTP client (for health checks)
+httpx>=0.25.0
+
+# =============================================================================
+# DATABASE DEPENDENCIES (for extraction script)
+# =============================================================================
+
+# MySQL/MariaDB connector
+mysql-connector-python>=8.0.33
+
+# =============================================================================
+# OPTIONAL DEPENDENCIES
+# =============================================================================
+
+# Development and testing (uncomment if needed)
+# pytest>=7.4.0
+# pytest-asyncio>=0.21.0
+# black>=23.0.0
+# flake8>=6.0.0
+# mypy>=1.5.0
+
+# Monitoring and profiling (uncomment if needed)
+# prometheus-client>=0.17.0
+# py-spy>=0.3.14
