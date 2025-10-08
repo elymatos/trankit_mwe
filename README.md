@@ -29,6 +29,18 @@
 }
 ```
 
+### :sparkles: NEW: Trankit MWE (Multiword Expression) Extension
+
+**This fork adds MWE recognition capabilities to Trankit**, allowing automatic detection and unified annotation of fixed expressions, idioms, and other multiword units. Key features:
+
+* **Dictionary-based recognition** with lemma normalization for handling inflected forms
+* **Automatic annotation** with unified lemma and POS tags from database
+* **Fixed dependency relations** (`fixed`) for MWE components
+* **Language-agnostic design** supporting any language with appropriate MWE database
+* **Runtime extensibility** - add/remove MWEs on the fly
+
+See examples in `examples/mwe_example.py` and full analysis in `CLAUDE.md`.
+
 ### :boom: :boom: :boom: Trankit v1.0.0 is out:
 
 * **90 new pretrained transformer-based pipelines for 56 languages**. The new pipelines are trained with XLM-Roberta large, which further boosts the performance significantly over 90 treebanks of the Universal Dependencies v2.5 corpus. Check out the new performance [here](https://trankit.readthedocs.io/en/latest/performance.html). This [page](https://trankit.readthedocs.io/en/latest/news.html#trankit-large) shows you how to use the new pipelines.
@@ -79,10 +91,45 @@ both sentence and document level. Currently, Trankit supports the following task
 - Sentence segmentation.
 - Tokenization.
 - Multi-word token expansion.
+- **Multiword expression recognition** (NEW!)
 - Part-of-speech tagging.
 - Morphological feature tagging.
 - Dependency parsing.
 - Named entity recognition.
+
+#### Using MWE Recognition
+To use MWE recognition, provide an MWE database when initializing the pipeline:
+
+```python
+from trankit import Pipeline
+
+# Define MWE database
+portuguese_mwes = {
+    "café da manhã": {"lemma": "café da manhã", "pos": "NOUN", "type": "fixed"},
+    "uma a uma": {"lemma": "um a um", "pos": "ADV", "type": "fixed"},
+    "de acordo com": {"lemma": "de acordo com", "pos": "ADP", "type": "fixed"}
+}
+
+# Initialize pipeline with MWE recognition
+p = Pipeline('portuguese', gpu=False, mwe_database=portuguese_mwes)
+
+# Process text with MWEs
+result = p("Tomei café da manhã e li os emails uma a uma.")
+
+# MWEs are automatically detected and annotated
+for sent in result['sentences']:
+    for token in sent['tokens']:
+        if 'mwe_span' in token:
+            print(f"MWE detected: {token['text']} (lemma: {token['mwe_lemma']}, pos: {token['mwe_pos']})")
+```
+
+The MWE recognizer automatically:
+- Normalizes inflected forms (e.g., "cafés da manhã" → matches "café da manhã")
+- Assigns unified lemma and POS from database
+- Sets dependency relations to 'fixed' for MWE components
+- Handles overlapping patterns using longest-match-first
+
+See `examples/mwe_example.py` for a complete working example.
 #### Initialize a pretrained pipeline
 The following code shows how to initialize a pretrained pipeline for English; it is instructed to run on GPU, automatically download pretrained models, and store them to the specified cache directory. Trankit will not download pretrained models if they already exist.
 ```python

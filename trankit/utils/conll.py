@@ -28,6 +28,14 @@ TOKENS = 'tokens'
 NER = 'ner'
 LANG = 'lang'
 
+# MWE (Multiword Expression) fields
+MWE_SPAN = 'mwe_span'
+MWE_LEMMA = 'mwe_lemma'
+MWE_POS = 'mwe_pos'
+MWE_TYPE = 'mwe_type'
+MWE_HEAD = 'mwe_head'
+MWE_POSITION = 'mwe_position'
+
 FIELD_TO_IDX = {ID: 0, TEXT: 1, LEMMA: 2, UPOS: 3, XPOS: 4, FEATS: 5, HEAD: 6, DEPREL: 7, DEPS: 8, MISC: 9}
 
 
