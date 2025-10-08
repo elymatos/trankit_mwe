@@ -63,7 +63,7 @@ def test_quick_lemmatize_portuguese():
     test_cases_rules = [
         ("cafés", "café"),
         ("manhãs", "manhã"),
-        ("flores", "flore"),  # Simplified rule
+        ("flores", "flor"),  # Simplified rule: removes 'es'
         ("jardins", "jardim"),
         ("uma", "uma"),  # No change
         ("da", "da"),  # No change
@@ -84,7 +84,7 @@ def test_quick_lemmatize_portuguese():
         ("papéis", "papel"),  # Dictionary lookup
         ("cafés", "café"),  # Dictionary lookup (overrides rules)
         ("foram", "ser"),  # Irregular verb
-        ("flores", "flore"),  # Fallback to rules
+        ("flores", "flor"),  # Fallback to rules
     ]
 
     for word, expected in test_cases_dict:
