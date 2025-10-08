@@ -1,0 +1,9 @@
+[DATABASE]
+# MariaDB/MySQL Database Configuration
+host =
+port =
+database =
+user =
+password =
+
+
