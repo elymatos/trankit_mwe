@@ -1,0 +1,17 @@
+# Minimal requirements for Docker - API dependencies only
+# Assumes Trankit and its dependencies are already installed in base image
+
+# FastAPI framework
+fastapi>=0.104.0
+
+# ASGI server
+uvicorn[standard]>=0.24.0
+
+# Production WSGI server
+gunicorn>=21.2.0
+
+# Data validation
+pydantic>=2.0.0
+
+# HTTP client (for health checks)
+httpx>=0.25.0
