@@ -1,6 +1,9 @@
 # Minimal requirements for Docker - API dependencies only
 # Assumes Trankit and its dependencies are already installed in base image
 
+# NumPy version constraint (MUST be < 2.0 for PyTorch/Trankit compatibility)
+numpy>=1.19.0,<2.0.0
+
 # FastAPI framework
 fastapi>=0.104.0
 
