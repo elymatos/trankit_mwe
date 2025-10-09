@@ -4,11 +4,11 @@
 
 The Trankit MWE (Multiword Expression) API is a RESTful web service that provides state-of-the-art NLP processing with specialized support for multiword expression recognition. Built on top of Trankit's transformer-based architecture, it offers sentence segmentation, tokenization, POS tagging, morphological analysis, dependency parsing, and MWE recognition for 100+ languages.
 
-**Base URL**: `http://localhost:8080/api/v1`
+**Base URL**: `http://localhost:8406/api/v1`
 
-**OpenAPI Documentation**: `http://localhost:8080/api/v1/docs`
+**OpenAPI Documentation**: `http://localhost:8406/api/v1/docs`
 
-**ReDoc Documentation**: `http://localhost:8080/api/v1/redoc`
+**ReDoc Documentation**: `http://localhost:8406/api/v1/redoc`
 
 ## Features
 
@@ -38,7 +38,7 @@ cp .env.example .env
 docker-compose up -d
 
 # 5. Check health
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8406/api/v1/health
 ```
 
 ### Local Development
@@ -76,7 +76,7 @@ Check API health and get information about loaded models.
 
 **Example**:
 ```bash
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8406/api/v1/health
 ```
 
 ---
@@ -197,7 +197,7 @@ Parse text with full NLP pipeline including MWE recognition.
 
 **Example**:
 ```bash
-curl -X POST http://localhost:8080/api/v1/parse \
+curl -X POST http://localhost:8406/api/v1/parse \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Tomei café da manhã antes de sair.",
@@ -211,7 +211,7 @@ curl -X POST http://localhost:8080/api/v1/parse \
 import requests
 
 response = requests.post(
-    "http://localhost:8080/api/v1/parse",
+    "http://localhost:8406/api/v1/parse",
     json={
         "text": "Tomei café da manhã antes de sair.",
         "language": "portuguese",
@@ -277,7 +277,7 @@ Parse multiple texts in batch for better efficiency.
 
 **Example**:
 ```bash
-curl -X POST http://localhost:8080/api/v1/parse_batch \
+curl -X POST http://localhost:8406/api/v1/parse_batch \
   -H "Content-Type: application/json" \
   -d '{
     "texts": [
@@ -339,7 +339,7 @@ Perform only MWE recognition without full parsing (lighter and faster).
 
 **Example**:
 ```bash
-curl -X POST http://localhost:8080/api/v1/mwe_only \
+curl -X POST http://localhost:8406/api/v1/mwe_only \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Tomei café da manhã de acordo com o plano.",
@@ -374,7 +374,7 @@ Same format as `/parse` endpoint.
 
 **Example**:
 ```bash
-curl -X POST http://localhost:8080/api/v1/parse_tokens \
+curl -X POST http://localhost:8406/api/v1/parse_tokens \
   -H "Content-Type: application/json" \
   -d '{
     "tokens": ["Tomei", "café", "da", "manhã", "."],
@@ -438,7 +438,7 @@ See `.env.example` for all available configuration options.
 
 ```bash
 # Server
-PORT=8080
+PORT=80  # Internal container port (host port 8406 set in docker-compose.yml)
 WORKERS=1
 
 # GPU
@@ -542,7 +542,7 @@ docker build -t trankit-mwe-api .
 
 # Run container
 docker run -d \
-  -p 8080:80 \
+  -p 8406:80 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/cache:/app/cache \
   -e GPU_ENABLED=false \
@@ -562,7 +562,7 @@ See `k8s/` directory for Kubernetes manifests (if available).
 The `/health` endpoint provides service status:
 
 ```bash
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8406/api/v1/health
 ```
 
 ### Docker Health Check
@@ -600,9 +600,9 @@ python scripts/extract_dictionaries_from_db.py
 
 ### Port Already in Use
 
-**Error**: "Port 8080 already in use"
+**Error**: "Port 8406 already in use"
 
-**Solution**: Change `PORT` in `.env` file
+**Solution**: Change the host port mapping in `docker-compose.yml` (e.g., `"8407:80"`)
 
 ### GPU Not Available
 
@@ -625,6 +625,30 @@ python scripts/extract_dictionaries_from_db.py
 - Use smaller `EMBEDDING_MODEL` (xlm-roberta-base instead of large)
 - Increase Docker memory limit
 
+### NumPy 2.x Compatibility Error
+
+**Error**: "A module that was compiled using NumPy 1.x cannot be run in NumPy 2.0.x"
+
+**Symptoms**:
+- Container crashes on startup
+- Import errors related to NumPy version mismatch
+- Error message about recompiling with NumPy 2.0
+
+**Solution**:
+The Docker image pins NumPy to 1.x for compatibility with PyTorch/Trankit. If you see this error:
+
+```bash
+# 1. Rebuild the image with --no-cache
+docker-compose build --no-cache
+
+# 2. Restart the container
+docker-compose up -d
+```
+
+**Root Cause**: PyTorch and Trankit were compiled with NumPy 1.x and are not compatible with NumPy 2.x. The `requirements-docker.txt` file now includes `numpy>=1.19.0,<2.0.0` to prevent this issue.
+
+**Prevention**: Always use the provided Docker image or ensure NumPy < 2.0 in your environment.
+
 ---
 
 ## Examples
@@ -635,7 +659,7 @@ python scripts/extract_dictionaries_from_db.py
 import requests
 
 class TrankitMWEClient:
-    def __init__(self, base_url="http://localhost:8080/api/v1"):
+    def __init__(self, base_url="http://localhost:8406/api/v1"):
         self.base_url = base_url
 
     def parse(self, text, language="portuguese", mwe_enabled=True):
@@ -704,7 +728,7 @@ print(f"Status: {health['status']}, Models: {health['models_loaded']}")
 const axios = require('axios');
 
 class TrankitMWEClient {
-  constructor(baseURL = 'http://localhost:8080/api/v1') {
+  constructor(baseURL = 'http://localhost:8406/api/v1') {
     this.client = axios.create({ baseURL });
   }
 
